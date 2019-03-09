@@ -3,7 +3,11 @@ import graphql_ from 'graphql/index.js'
 const {
     GraphQLObjectType,
     GraphQLString,
-    GraphQLSchema
+    GraphQLSchema,
+    GraphQLID,
+    GraphQLInt,
+    GraphQLList,
+    GraphQLNonNull
 } = graphql_
 
 // mock data -- start
@@ -30,6 +34,29 @@ const BookType = new GraphQLObjectType({
             resolve(parent, args) {}
         }
 
+    })
+});
+
+const AuthorType = new GraphQLObjectType({
+    name: 'Author',
+    fields: () => ({
+        id: {
+            type: GraphQLID
+        },
+        name: {
+            type: GraphQLString
+        },
+        age: {
+            type: GraphQLInt
+        },
+        books: {
+            type: new GraphQLList(BookType),
+            resolve(parent, args) {
+                return Book.find({
+                    authorId: parent.id
+                });
+            }
+        }
     })
 });
 
