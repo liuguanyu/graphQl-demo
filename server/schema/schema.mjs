@@ -1,5 +1,8 @@
 import graphql_ from 'graphql/index.js'
 
+import Books from './models/books'
+import Authors from './models/authors'
+
 const {
     GraphQLObjectType,
     GraphQLString,
@@ -11,9 +14,9 @@ const {
 } = graphql_
 
 // mock data -- start
-import {
-    books
-} from './mocks'
+// import {
+//     books
+// } from './mocks'
 // mock data -- end
 
 const BookType = new GraphQLObjectType({
@@ -31,9 +34,11 @@ const BookType = new GraphQLObjectType({
 
         author: {
             type: AuthorType,
-            resolve(parent, args) {}
+            async resolve(parent, args, context) {
+                let ret = await Authors.findByPk(parseInt(parent.author))
+                return ret
+            }
         }
-
     })
 });
 
@@ -51,15 +56,31 @@ const AuthorType = new GraphQLObjectType({
         },
         books: {
             type: new GraphQLList(BookType),
-            resolve(parent, args) {
-                return Book.find({
-                    authorId: parent.id
-                });
-            }
+            resolve(parent, args) {}
         }
     })
-});
+})
 
+const BookPaginationType = new GraphQLObjectType({
+    name: 'BookPagination',
+    fields: () => ({
+        datas: {
+            type: new GraphQLList(BookType)
+        },
+        total: {
+            type: GraphQLInt
+        },
+        current: {
+            type: GraphQLInt
+        },
+        pageSize: {
+            type: GraphQLInt
+        },
+        totalPage: {
+            type: GraphQLInt
+        }
+    })
+})
 
 const RootQuery = new GraphQLObjectType({
     name: 'RootQueryType',
@@ -72,8 +93,35 @@ const RootQuery = new GraphQLObjectType({
                 }
             },
             async resolve(parent, args, context) {
-                let rets = await context.database.query("select * from books where id=" + parseInt(args.id));
-                return rets;
+                let ret = await Books.findByPk(parseInt(args.id));
+                return ret;
+            }
+        },
+        books: {
+            type: BookPaginationType,
+            args: {
+                page: {
+                    type: GraphQLInt,
+                    defaultValue: 1
+                },
+                pageSize: {
+                    type: GraphQLInt,
+                    defaultValue: 10
+                }
+            },
+            async resolve(parent, args, context) {
+                let ret = await Books.findAndCountAll({
+                    limit: args.pageSize,
+                    offset: (args.page - 1) * args.pageSize
+                })
+
+                return {
+                    datas: ret["rows"],
+                    total: ret["count"],
+                    current: args.page,
+                    pageSize: args.pageSize,
+                    totalPage: Math.ceil(ret["count"] / args.pageSize)
+                };
             }
         }
     }
@@ -93,11 +141,7 @@ const Mutation = new GraphQLObjectType({
                 }
             },
             resolve(parent, args) {
-                let author = new Author({
-                    name: args.name,
-                    age: args.age
-                });
-                return author.save();
+
             }
         },
         addBook: {
@@ -106,20 +150,22 @@ const Mutation = new GraphQLObjectType({
                 name: {
                     type: new GraphQLNonNull(GraphQLString)
                 },
-                genre: {
+                pic: {
                     type: new GraphQLNonNull(GraphQLString)
                 },
                 authorId: {
                     type: new GraphQLNonNull(GraphQLID)
                 }
             },
-            resolve(parent, args) {
-                let book = new Book({
+            async resolve(parent, args, context) {
+                let ret = await Books.create({
+                    author: args.authorId,
                     name: args.name,
-                    genre: args.genre,
-                    authorId: args.authorId
-                });
-                return book.save();
+                    picture: args.pic,
+                    create_time: new Date()
+                })
+
+                return ret
             }
         }
     }
